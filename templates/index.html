@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hệ thống Quản lý Sinh viên & Kết quả Học tập</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { background-color: #f4f6f9; }
+        .navbar-brand { font-weight: 700; letter-spacing: 0.3px; }
+        .card { border: none; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        .nav-pills .nav-link { font-weight: 500; color: #495057; border-radius: 8px; }
+        .nav-pills .nav-link.active { background-color: #0d6efd; color: #fff; }
+        .stat-card { transition: transform 0.15s ease; }
+        .stat-card:hover { transform: translateY(-2px); }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm mb-4">
+    <div class="container">
+        <a class="navbar-brand" href="{{ url_for('index') }}">
+            <i class="bi bi-mortarboard-fill me-2"></i>QUẢN LÝ SINH VIÊN & KẾT QUẢ HỌC TẬP
+        </a>
+        <span class="navbar-text text-white-50 small">Python OOP + SQLite + Flask</span>
+    </div>
+</nav>
+
+<div class="container pb-5">
+    <!-- Thông báo Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Thanh điều hướng các phân hệ -->
+    <ul class="nav nav-pills bg-white p-2 rounded-3 shadow-sm mb-4 gap-2">
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'stats' %}active{% endif %}" href="{{ url_for('index', tab='stats') }}">
+                <i class="bi bi-bar-chart-fill me-1"></i> Thống kê kết quả
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'grades' %}active{% endif %}" href="{{ url_for('index', tab='grades') }}">
+                <i class="bi bi-pencil-square me-1"></i> Nhập điểm & Xếp loại
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'transcript' %}active{% endif %}" href="{{ url_for('index', tab='transcript') }}">
+                <i class="bi bi-file-earmark-text-fill me-1"></i> Bảng điểm & GPA cá nhân
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'students' %}active{% endif %}" href="{{ url_for('index', tab='students') }}">
+                <i class="bi bi-people-fill me-1"></i> Quản lý Sinh viên
+            </a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link {% if active_tab == 'academic' %}active{% endif %}" href="{{ url_for('index', tab='academic') }}">
+                <i class="bi bi-journal-bookmark-fill me-1"></i> Lớp học, Giảng viên & Môn học
+            </a>
+        </li>
+    </ul>
+
+    <!-- ==================== TAB 1: THỐNG KÊ KẾT QUẢ HỌC TẬP ==================== -->
+    {% if active_tab == 'stats' %}
+    <div class="card p-4 mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-3">
+            <h5 class="mb-0 fw-bold text-primary"><i class="bi bi-graph-up-arrow me-2"></i>Thống kê kết quả học tập</h5>
+            <form method="GET" action="{{ url_for('index') }}" class="d-flex gap-2">
+                <input type="hidden" name="tab" value="stats">
+                <select name="stat_course" class="form-select form-select-sm" onchange="this.form.submit()">
+                    <option value="">-- Tất cả môn học --</option>
+                    {% for c in courses %}
+                        <option value="{{ c.course_id }}" {% if stat_course == c.course_id %}selected{% endif %}>
+                            {{ c.course_id }} - {{ c.course_name }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if stats.total == 0 %}
+            <div class="alert alert-info mb-0">Chưa có dữ liệu điểm cho lựa chọn này.</div>
+        {% else %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card stat-card bg-primary text-white p-3">
+                        <div class="small opacity-75">Tổng số lượt điểm</div>
+                        <div class="fs-3 fw-bold">{{ stats.total }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card bg-info text-white p-3">
+                        <div class="small opacity-75">Điểm trung bình chung</div>
+                        <div class="fs-3 fw-bold">{{ stats.avg_all }}</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card bg-success text-white p-3">
+                        <div class="small opacity-75">Tỷ lệ Đạt (&ge; 5.0)</div>
+                        <div class="fs-3 fw-bold">{{ stats.passed }} ({{ stats.pass_rate }}%)</div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card stat-card bg-danger text-white p-3">
+                        <div class="small opacity-75">Tỷ lệ Không đạt (&lt; 5.0)</div>
+                        <div class="fs-3 fw-bold">{{ stats.failed }} ({{ stats.fail_rate }}%)</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-4">
+                <div class="col-md-6">
+                    <h6 class="fw-bold mb-3">Phân bố xếp loại học lực</h6>
+                    {% set badge_colors = {'Xuất sắc': 'bg-success', 'Giỏi': 'bg-primary', 'Khá': 'bg-info', 'Trung bình': 'bg-warning', 'Yếu': 'bg-danger'} %}
+                    {% for rank, count in stats.ranks.items() %}
+                        {% set pct = (count * 100 / stats.total) | round(1) %}
+                        <div class="mb-2">
+                            <div class="d-flex justify-content-between small mb-1">
+                                <span class="fw-semibold">{{ rank }}</span>
+                                <span>{{ count }} lượt ({{ pct }}%)</span>
+                            </div>
+                            <div class="progress" style="height: 10px;">
+                                <div class="progress-bar {{ badge_colors[rank] }}" style="width: {{ pct }}%"></div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <div class="col-md-6">
+                    <h6 class="fw-bold mb-3">Điểm nổi bật</h6>
+                    <ul class="list-group mb-3">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-trophy-fill text-warning me-2"></i>Cao nhất: <strong>{{ stats.highest.student_name }}</strong> ({{ stats.highest.course_name }})</span>
+                            <span class="badge bg-success fs-6">{{ stats.highest.average_score }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="bi bi-exclamation-triangle-fill text-danger me-2"></i>Thấp nhất: <strong>{{ stats.lowest.student_name }}</strong> ({{ stats.lowest.course_name }})</span>
+                            <span class="badge bg-danger fs-6">{{ stats.lowest.average_score }}</span>
+                        </li>
+                    </ul>
+
+                    <h6 class="fw-bold text-success">Danh sách Khen thưởng (ĐTB &ge; 8.0)</h6>
+                    <div class="small mb-3">
+                        {% if stats.commendations %}
+                            {% for g in stats.commendations %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle me-1 mb-1">
+                                    {{ g.student_id }} - {{ g.student_name }} ({{ g.course_id }}: {{ g.average_score }})
+                                </span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">Không có</span>
+                        {% endif %}
+                    </div>
+
+                    <h6 class="fw-bold text-danger">Danh sách Cảnh báo học vụ (ĐTB &lt; 5.0)</h6>
+                    <div class="small">
+                        {% if stats.warnings %}
+                            {% for g in stats.warnings %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle me-1 mb-1">
+                                    {{ g.student_id }} - {{ g.student_name }} ({{ g.course_id }}: {{ g.average_score }})
+                                </span>
+                            {% endfor %}
+                        {% else %}
+                            <span class="text-muted">Không có</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 2: NHẬP ĐIỂM & XẾP LOẠI ==================== -->
+    {% if active_tab == 'grades' %}
+    <div class="card p-4 mb-4">
+        <h5 class="fw-bold text-primary mb-3"><i class="bi bi-calculator me-2"></i>Nhập / Cập nhật điểm học phần</h5>
+        <form method="POST" action="{{ url_for('save_grade') }}" class="row g-3 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">Sinh viên</label>
+                <select name="student_id" id="grade_student_id" class="form-select" required>
+                    {% for s in all_students %}
+                        <option value="{{ s.student_id }}">{{ s.student_id }} - {{ s.full_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small fw-semibold">Môn học</label>
+                <select name="course_id" id="grade_course_id" class="form-select" required>
+                    {% for c in courses %}
+                        <option value="{{ c.course_id }}">{{ c.course_id }} - {{ c.course_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label small fw-semibold">CC (10%)</label>
+                <input type="number" step="0.1" min="0" max="10" name="attendance_score" id="grade_cc" class="form-control" required>
+            </div>
+            <div class="col-md-1">
+                <label class="form-label small fw-semibold">GK (30%)</label>
+                <input type="number" step="0.1" min="0" max="10" name="midterm_score" id="grade_gk" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small fw-semibold">CK (60%)</label>
+                <input type="number" step="0.1" min="0" max="10" name="final_score" id="grade_ck" class="form-control" required>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100"><i class="bi bi-save me-1"></i>Lưu & Tính ĐTB</button>
+            </div>
+        </form>
+    </div>
+
+    <div class="card p-4">
+        <h5 class="fw-bold mb-3">Bảng điểm chi tiết toàn hệ thống</h5>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã SV</th>
+                        <th>Họ tên sinh viên</th>
+                        <th>Mã MH</th>
+                        <th>Tên môn học</th>
+                        <th class="text-center">CC</th>
+                        <th class="text-center">GK</th>
+                        <th class="text-center">CK</th>
+                        <th class="text-center">ĐTB</th>
+                        <th>Xếp loại</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for g in grades %}
+                    <tr>
+                        <td class="fw-bold">{{ g.student_id }}</td>
+                        <td>{{ g.student_name }}</td>
+                        <td><span class="badge bg-secondary">{{ g.course_id }}</span></td>
+                        <td>{{ g.course_name }}</td>
+                        <td class="text-center">{{ "%.1f"|format(g.attendance_score) }}</td>
+                        <td class="text-center">{{ "%.1f"|format(g.midterm_score) }}</td>
+                        <td class="text-center">{{ "%.1f"|format(g.final_score) }}</td>
+                        <td class="text-center fw-bold text-primary">{{ "%.2f"|format(g.average_score) }}</td>
+                        <td>
+                            {% if g.classification == 'Xuất sắc' %}<span class="badge bg-success">Xuất sắc</span>
+                            {% elif g.classification == 'Giỏi' %}<span class="badge bg-primary">Giỏi</span>
+                            {% elif g.classification == 'Khá' %}<span class="badge bg-info text-dark">Khá</span>
+                            {% elif g.classification == 'Trung bình' %}<span class="badge bg-warning text-dark">Trung bình</span>
+                            {% else %}<span class="badge bg-danger">Yếu</span>{% endif %}
+                        </td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                onclick="fillGradeForm('{{ g.student_id }}', '{{ g.course_id }}', '{{ g.attendance_score }}', '{{ g.midterm_score }}', '{{ g.final_score }}')">
+                                Sửa
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_grade', student_id=g.student_id, course_id=g.course_id) }}" class="d-inline" onsubmit="return confirm('Xóa điểm này?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 3: BẢNG ĐIỂM & GPA CÁ NHÂN ==================== -->
+    {% if active_tab == 'transcript' %}
+    <div class="card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <h5 class="fw-bold text-primary mb-0"><i class="bi bi-award-fill me-2"></i>Bảng điểm cá nhân & GPA tích lũy</h5>
+            <form method="GET" action="{{ url_for('index') }}" class="d-flex gap-2">
+                <input type="hidden" name="tab" value="transcript">
+                <select name="transcript_sid" class="form-select" onchange="this.form.submit()">
+                    {% for s in all_students %}
+                        <option value="{{ s.student_id }}" {% if transcript_sid == s.student_id %}selected{% endif %}>
+                            {{ s.student_id }} - {{ s.full_name }} ({{ s.class_id }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </form>
+        </div>
+
+        {% if not transcript %}
+            <div class="alert alert-warning mb-0">Sinh viên này chưa có dữ liệu điểm học phần nào.</div>
+        {% else %}
+            <div class="row g-3 mb-4">
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="small text-muted">Sinh viên</div>
+                        <div class="fw-bold fs-5">{{ transcript.student_name }} ({{ transcript.student_id }})</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-light rounded-3">
+                        <div class="small text-muted">Tổng môn học / Tổng tín chỉ</div>
+                        <div class="fw-bold fs-5">{{ transcript.total_courses }} môn / {{ transcript.total_credits }} tín chỉ</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="p-3 bg-primary text-white rounded-3">
+                        <div class="small opacity-75">GPA Tích lũy (Hệ 10)</div>
+                        <div class="fw-bold fs-5">{{ transcript.gpa }} — {{ transcript.classification }}</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Mã MH</th>
+                            <th>Tên môn học</th>
+                            <th class="text-center">Số tín chỉ</th>
+                            <th class="text-center">Chuyên cần</th>
+                            <th class="text-center">Giữa kỳ</th>
+                            <th class="text-center">Cuối kỳ</th>
+                            <th class="text-center">Điểm TB</th>
+                            <th>Xếp loại</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for g in transcript.grades %}
+                        <tr>
+                            <td class="fw-bold">{{ g.course_id }}</td>
+                            <td>{{ g.course_name }}</td>
+                            <td class="text-center">{{ g.credits }}</td>
+                            <td class="text-center">{{ g.attendance_score }}</td>
+                            <td class="text-center">{{ g.midterm_score }}</td>
+                            <td class="text-center">{{ g.final_score }}</td>
+                            <td class="text-center fw-bold text-primary">{{ g.average_score }}</td>
+                            <td>{{ g.classification }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 4: QUẢN LÝ SINH VIÊN ==================== -->
+    {% if active_tab == 'students' %}
+    <div class="card p-4 mb-4">
+        <h5 class="fw-bold text-primary mb-3"><i class="bi bi-person-plus-fill me-2"></i>Thêm sinh viên mới</h5>
+        <form method="POST" action="{{ url_for('add_student') }}" class="row g-3">
+            <div class="col-md-2">
+                <input type="text" name="student_id" class="form-control" placeholder="Mã SV (VD: SV006)" required>
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="full_name" class="form-control" placeholder="Họ và tên" required>
+            </div>
+            <div class="col-md-2">
+                <input type="date" name="dob" class="form-control" value="2006-01-01">
+            </div>
+            <div class="col-md-1">
+                <select name="gender" class="form-select">
+                    <option value="Nam">Nam</option>
+                    <option value="Nữ">Nữ</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="class_id" class="form-select" required>
+                    {% for c in classrooms %}
+                        <option value="{{ c.class_id }}">{{ c.class_id }} - {{ c.class_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">Thêm sinh viên</button>
+            </div>
+            <div class="col-md-3">
+                <input type="email" name="email" class="form-control" placeholder="Email sinh viên">
+            </div>
+            <div class="col-md-3">
+                <input type="text" name="phone" class="form-control" placeholder="Số điện thoại">
+            </div>
+        </form>
+    </div>
+
+    <div class="card p-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h5 class="fw-bold mb-0">Danh sách sinh viên ({{ students|length }})</h5>
+            <form method="GET" action="{{ url_for('index') }}" class="d-flex gap-2">
+                <input type="hidden" name="tab" value="students">
+                <input type="text" name="keyword" value="{{ keyword }}" class="form-control form-control-sm" placeholder="Tìm mã SV, tên, lớp...">
+                <button type="submit" class="btn btn-sm btn-outline-primary">Tìm</button>
+                {% if keyword %}
+                    <a href="{{ url_for('index', tab='students') }}" class="btn btn-sm btn-outline-secondary">Xóa lọc</a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead class="table-light">
+                    <tr>
+                        <th>Mã SV</th>
+                        <th>Họ và tên</th>
+                        <th>Ngày sinh</th>
+                        <th>Giới tính</th>
+                        <th>Lớp</th>
+                        <th>Email</th>
+                        <th>SĐT</th>
+                        <th class="text-end">Thao tác</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in students %}
+                    <tr>
+                        <td class="fw-bold">{{ s.student_id }}</td>
+                        <td>{{ s.full_name }}</td>
+                        <td>{{ s.dob }}</td>
+                        <td>{{ s.gender }}</td>
+                        <td><span class="badge bg-info text-dark">{{ s.class_id }}</span></td>
+                        <td>{{ s.email }}</td>
+                        <td>{{ s.phone }}</td>
+                        <td class="text-end">
+                            <button type="button" class="btn btn-sm btn-outline-primary"
+                                data-bs-toggle="modal" data-bs-target="#editStudentModal"
+                                onclick="openEditStudent('{{ s.student_id }}', '{{ s.full_name }}', '{{ s.dob }}', '{{ s.gender }}', '{{ s.email }}', '{{ s.phone }}', '{{ s.class_id }}')">
+                                Sửa
+                            </button>
+                            <form method="POST" action="{{ url_for('delete_student', student_id=s.student_id) }}" class="d-inline" onsubmit="return confirm('Xóa sinh viên {{ s.student_id }}?');">
+                                <button type="submit" class="btn btn-sm btn-outline-danger">Xóa</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Modal Sửa Sinh viên -->
+    <div class="modal fade" id="editStudentModal" tabindex="-1">
+        <div class="modal-dialog">
+            <form method="POST" action="{{ url_for('update_student') }}" class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Cập nhật thông tin sinh viên</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label small">Mã SV</label>
+                        <input type="text" name="student_id" id="edit_sid" class="form-control" readonly>
+                    </div>
+                    <div class="col-md-8">
+                        <label class="form-label small">Họ và tên</label>
+                        <input type="text" name="full_name" id="edit_name" class="form-control" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Ngày sinh</label>
+                        <input type="date" name="dob" id="edit_dob" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Giới tính</label>
+                        <select name="gender" id="edit_gender" class="form-select">
+                            <option value="Nam">Nam</option>
+                            <option value="Nữ">Nữ</option>
+                        </select>
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label small">Lớp học</label>
+                        <select name="class_id" id="edit_class_id" class="form-select">
+                            {% for c in classrooms %}
+                                <option value="{{ c.class_id }}">{{ c.class_id }} - {{ c.class_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Email</label>
+                        <input type="email" name="email" id="edit_email" class="form-control">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label small">Số điện thoại</label>
+                        <input type="text" name="phone" id="edit_phone" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Hủy</button>
+                    <button type="submit" class="btn btn-primary">Lưu thay đổi</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ==================== TAB 5: LỚP HỌC, GIẢNG VIÊN & MÔN HỌC ==================== -->
+    {% if active_tab == 'academic' %}
+    <div class="row g-4">
+        <!-- Lớp học -->
+        <div class="col-md-6">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold text-primary mb-3">Quản lý Lớp học</h5>
+                <form method="POST" action="{{ url_for('add_classroom') }}" class="row g-2 mb-3">
+                    <div class="col-4"><input type="text" name="class_id" class="form-control form-control-sm" placeholder="Mã lớp" required></div>
+                    <div class="col-5"><input type="text" name="class_name" class="form-control form-control-sm" placeholder="Tên lớp" required></div>
+                    <div class="col-3"><input type="text" name="academic_year" class="form-control form-control-sm" placeholder="Niên khóa" required></div>
+                    <div class="col-12"><button type="submit" class="btn btn-sm btn-primary w-100">Thêm lớp học</button></div>
+                </form>
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Mã lớp</th><th>Tên lớp</th><th>Niên khóa</th><th></th></tr></thead>
+                    <tbody>
+                        {% for c in classrooms %}
+                        <tr>
+                            <td class="fw-bold">{{ c.class_id }}</td>
+                            <td>{{ c.class_name }}</td>
+                            <td>{{ c.academic_year }}</td>
+                            <td class="text-end">
+                                <form method="POST" action="{{ url_for('delete_classroom', class_id=c.class_id) }}" onsubmit="return confirm('Xóa lớp này?');">
+                                    <button class="btn btn-sm btn-outline-danger py-0">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Môn học -->
+        <div class="col-md-6">
+            <div class="card p-4 h-100">
+                <h5 class="fw-bold text-primary mb-3">Quản lý Môn học</h5>
+                <form method="POST" action="{{ url_for('add_course') }}" class="row g-2 mb-3">
+                    <div class="col-3"><input type="text" name="course_id" class="form-control form-control-sm" placeholder="Mã MH" required></div>
+                    <div class="col-5"><input type="text" name="course_name" class="form-control form-control-sm" placeholder="Tên môn học" required></div>
+                    <div class="col-2"><input type="number" min="1" max="10" name="credits" class="form-control form-control-sm" placeholder="TC" required></div>
+                    <div class="col-2">
+                        <select name="teacher_id" class="form-select form-select-sm">
+                            <option value="">GV</option>
+                            {% for t in teachers %}<option value="{{ t.teacher_id }}">{{ t.teacher_id }}</option>{% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-12"><button type="submit" class="btn btn-sm btn-primary w-100">Thêm môn học</button></div>
+                </form>
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Mã MH</th><th>Tên môn học</th><th>TC</th><th>Giảng viên</th><th></th></tr></thead>
+                    <tbody>
+                        {% for c in courses %}
+                        <tr>
+                            <td class="fw-bold">{{ c.course_id }}</td>
+                            <td>{{ c.course_name }}</td>
+                            <td>{{ c.credits }}</td>
+                            <td>{{ c.teacher_name or 'Chưa phân công' }}</td>
+                            <td class="text-end">
+                                <form method="POST" action="{{ url_for('delete_course', course_id=c.course_id) }}" onsubmit="return confirm('Xóa môn học này?');">
+                                    <button class="btn btn-sm btn-outline-danger py-0">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Giảng viên -->
+        <div class="col-12">
+            <div class="card p-4">
+                <h5 class="fw-bold text-primary mb-3">Quản lý Giảng viên (Kế thừa lớp Person)</h5>
+                <form method="POST" action="{{ url_for('add_teacher') }}" class="row g-2 mb-3">
+                    <div class="col-md-2"><input type="text" name="teacher_id" class="form-control form-control-sm" placeholder="Mã GV" required></div>
+                    <div class="col-md-3"><input type="text" name="full_name" class="form-control form-control-sm" placeholder="Họ và tên" required></div>
+                    <div class="col-md-2"><input type="text" name="degree" class="form-control form-control-sm" placeholder="Học vị (ThS/TS)" required></div>
+                    <div class="col-md-2"><input type="text" name="department" class="form-control form-control-sm" placeholder="Khoa / Bộ môn" required></div>
+                    <div class="col-md-2"><input type="email" name="email" class="form-control form-control-sm" placeholder="Email"></div>
+                    <div class="col-md-1"><button type="submit" class="btn btn-sm btn-primary w-100">Thêm</button></div>
+                </form>
+                <table class="table table-sm align-middle">
+                    <thead><tr><th>Mã GV</th><th>Học vị & Họ tên</th><th>Khoa</th><th>Email</th><th>SĐT</th><th></th></tr></thead>
+                    <tbody>
+                        {% for t in teachers %}
+                        <tr>
+                            <td class="fw-bold">{{ t.teacher_id }}</td>
+                            <td>{{ t.degree }}. {{ t.full_name }}</td>
+                            <td>{{ t.department }}</td>
+                            <td>{{ t.email }}</td>
+                            <td>{{ t.phone }}</td>
+                            <td class="text-end">
+                                <form method="POST" action="{{ url_for('delete_teacher', teacher_id=t.teacher_id) }}" onsubmit="return confirm('Xóa giảng viên này?');">
+                                    <button class="btn btn-sm btn-outline-danger py-0">Xóa</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    function fillGradeForm(sid, cid, cc, gk, ck) {
+        document.getElementById('grade_student_id').value = sid;
+        document.getElementById('grade_course_id').value = cid;
+        document.getElementById('grade_cc').value = cc;
+        document.getElementById('grade_gk').value = gk;
+        document.getElementById('grade_ck').value = ck;
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function openEditStudent(sid, name, dob, gender, email, phone, classId) {
+        document.getElementById('edit_sid').value = sid;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_dob').value = dob;
+        document.getElementById('edit_gender').value = gender;
+        document.getElementById('edit_email').value = email;
+        document.getElementById('edit_phone').value = phone;
+        document.getElementById('edit_class_id').value = classId;
+    }
+</script>
+</body>
+</html>
